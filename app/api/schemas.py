@@ -45,16 +45,16 @@ class TriageRequest(BaseModel):
         max_length=5000,
         example="I have chest pain and sweating"
     )
-    age: int = Field(
-        ...,
-        description="Patient's age in years",
+    age: Optional[int] = Field(
+        default=30,
+        description="Patient's age in years (extracted from text if omitted)",
         ge=0,
         le=150,
         example=52
     )
-    duration_days: int = Field(
-        ...,
-        description="Duration of symptoms in days",
+    duration_days: Optional[int] = Field(
+        default=1,
+        description="Duration of symptoms in days (extracted from text if omitted)",
         ge=0,
         le=365,
         example=1

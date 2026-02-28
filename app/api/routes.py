@@ -333,3 +333,53 @@ async def get_rules():
         "rules": rule_engine.get_all_rules(),
         "version": "1.0.0"
     }
+
+
+@router.post(
+    "/triage/chat",
+    summary="Follow-up chat after triage",
+    description=(
+        "Send a follow-up question about the triage result. "
+        "Include conversation history and the original triage context for continuity."
+    ),
+    tags=["Triage"],
+    responses={
+        200: {"description": "Chat reply"},
+        503: {"description": "MedGemma not ready"},
+    },
+)
+async def triage_chat(request: Request):
+    """
+    Follow-up chat powered by MedGemma.
+
+    Body JSON:
+        message (str): User's latest message.
+        history (list): Previous turns [{"role":"user"|"assistant","content":"..."}].
+        triage_context (dict, optional): {risk_level, symptoms_text, explanation, ...}.
+        language (str): Language code (default "en").
+
+    Returns:
+        dict: {reply: str, model_ready: bool}
+    """
+    body = await request.json()
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+
+    history = body.get("history", [])
+    triage_context = body.get("triage_context")
+    language = body.get("language", "en")
+
+    explanation_svc = triage_service.explanation_service
+
+    reply = explanation_svc.chat(
+        message=message,
+        history=history,
+        triage_context=triage_context,
+        language=language,
+    )
+
+    return {
+        "reply": reply,
+        "model_ready": explanation_svc.model_ready,
+    }

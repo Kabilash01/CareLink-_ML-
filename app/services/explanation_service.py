@@ -112,6 +112,10 @@ class ExplanationService:
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
 
+            # ── Faster attention via SDPA (Scaled Dot Product Attention)
+            torch.backends.cuda.enable_flash_sdp(True)
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+
             model_id = settings.LLM_HF_MODEL_ID
             hf_token = settings.HUGGINGFACE_TOKEN or None
 
@@ -124,7 +128,7 @@ class ExplanationService:
             if self._tokenizer.pad_token is None:
                 self._tokenizer.pad_token = self._tokenizer.eos_token
 
-            # ── Single NF4 4-bit model
+            # ── Single NF4 4-bit model with SDPA attention
             logger.info(f"[BNB] Loading model (NF4 4-bit): {model_id}")
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
@@ -136,6 +140,7 @@ class ExplanationService:
             self._model = AutoModelForCausalLM.from_pretrained(
                 model_id, quantization_config=bnb_config, device_map="auto",
                 dtype=torch.bfloat16, token=hf_token, low_cpu_mem_usage=True,
+                attn_implementation="sdpa",  # fastest attention backend
             )
             self._model.eval()
             load_ms = (time.time() - t0) * 1000
@@ -209,7 +214,7 @@ class ExplanationService:
         inputs = inputs.to("cuda")
 
         t0 = time.perf_counter()
-        with torch.no_grad():
+        with torch.inference_mode():  # faster than no_grad — disables autograd + version counting
             output_ids = self._model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
@@ -224,7 +229,8 @@ class ExplanationService:
 
         new_ids = output_ids[0][inputs["input_ids"].shape[-1]:]
         text = self._tokenizer.decode(new_ids, skip_special_tokens=True).strip()
-        logger.info(f"[BNB] text generate() | {new_ids.shape[0]} tok | {elapsed:.2f}s")
+        tok_per_sec = new_ids.shape[0] / elapsed if elapsed > 0 else 0
+        logger.info(f"[BNB] text generate() | {new_ids.shape[0]} tok | {elapsed:.2f}s | {tok_per_sec:.1f} tok/s")
         return text
 
     # ─────────────────────────────────────────────
@@ -286,7 +292,7 @@ class ExplanationService:
 
         torch.cuda.empty_cache()
         t0 = time.perf_counter()
-        with torch.no_grad():
+        with torch.inference_mode():  # faster than no_grad
             # NF4 + vision KV-cache + multinomial sampling (do_sample=True)
             # triggers TensorCompare.cu assertion on Blackwell GPUs (RTX 50xx)
             # at ANY temperature. Must use greedy decoding.
@@ -581,3 +587,78 @@ class ExplanationService:
         }
         lang_templates = templates.get(language, templates["en"])
         return lang_templates.get(risk_level, lang_templates.get("MEDIUM", "Please consult a doctor."))
+
+    # ─────────────────────────────────────────────
+    # PUBLIC API — chat (follow-up conversation)
+    # ─────────────────────────────────────────────
+
+    def chat(
+        self,
+        message: str,
+        history: List[dict],
+        triage_context: Optional[dict] = None,
+        language: str = "en",
+    ) -> str:
+        """
+        Follow-up chat after triage.  Accepts conversation history and the
+        original triage context so the model can give relevant answers.
+
+        Args:
+            message: The user's latest message
+            history: List of {"role": "user"|"assistant", "content": "..."}
+            triage_context: Optional dict with keys like risk_level, symptoms, explanation
+            language: Language code
+
+        Returns:
+            The assistant's reply text
+        """
+        if not self.enabled or self._model is None:
+            return (
+                "The AI chat is not available right now. "
+                "Please try again once the model has finished loading."
+            )
+
+        lang_instruction = {
+            "en": "Respond in English.",
+            "es": "Responde completamente en español.",
+            "fr": "Réponds entièrement en français.",
+        }.get(language, "Respond in English.")
+
+        # Build system message with triage context
+        system_parts = [
+            "You are a compassionate, concise medical AI assistant. "
+            "The patient has already received a triage assessment. "
+            "Answer follow-up questions about their symptoms, the triage result, "
+            "and general health guidance. Never diagnose. Always recommend "
+            "professional medical consultation for specific concerns.",
+        ]
+        if triage_context:
+            ctx = (
+                f"\n\nTriage context — Risk: {triage_context.get('risk_level', 'N/A')}, "
+                f"Symptoms: {triage_context.get('symptoms_text', 'N/A')}, "
+                f"Explanation: {triage_context.get('explanation', 'N/A')[:300]}"
+            )
+            system_parts.append(ctx)
+        system_parts.append(f"\n{lang_instruction}")
+
+        messages = [{"role": "system", "content": "".join(system_parts)}]
+
+        # Append conversation history (last 10 turns to stay within context)
+        for turn in (history or [])[-10:]:
+            messages.append({
+                "role": turn.get("role", "user"),
+                "content": turn.get("content", ""),
+            })
+
+        # Append current message
+        messages.append({"role": "user", "content": message})
+
+        try:
+            text = self._text_infer(
+                self._messages_to_prompt(messages),
+                settings.LLM_MAX_NEW_TOKENS,
+            )
+            return text or "I'm sorry, I couldn't generate a response. Please try again."
+        except Exception as exc:
+            logger.error(f"Chat inference failed: {exc}")
+            return f"Chat error: {exc}"
