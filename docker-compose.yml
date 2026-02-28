@@ -1,0 +1,66 @@
+# Docker Compose for local development and testing
+
+version: '3.8'
+
+services:
+  carelink-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: carelink-ai-service
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+      - HOST=0.0.0.0
+      - PORT=8000
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+      - API_KEY_ENABLED=false
+      - ENABLE_METRICS=true
+      - ENABLE_AUDIT_LOGGING=true
+    volumes:
+      - ./app:/app/app:ro
+      - ./logs:/app/logs
+      - ./models:/app/app/models:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - carelink-network
+
+  # Optional: Add PostgreSQL for audit logging
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: carelink-db
+  #   environment:
+  #     POSTGRES_DB: carelink_ai
+  #     POSTGRES_USER: carelink
+  #     POSTGRES_PASSWORD: changeme
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   networks:
+  #     - carelink-network
+
+  # Optional: Add Prometheus for metrics
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: carelink-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #   networks:
+  #     - carelink-network
+
+networks:
+  carelink-network:
+    driver: bridge
+
+# volumes:
+#   postgres-data:

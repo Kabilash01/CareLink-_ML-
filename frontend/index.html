@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CARELINK AI — Symptom Triage</title>
+  <style>
+    :root {
+      --green-dark:   #0d5c2e;
+      --green:        #1a7a42;
+      --green-light:  #e8f5ee;
+      --blue-dark:    #1a3a5c;
+      --yellow:       #f59e0b;
+      --yellow-bg:    #fffbeb;
+      --red:          #dc2626;
+      --red-bg:       #fef2f2;
+      --gray-50:      #f9fafb;
+      --gray-100:     #f3f4f6;
+      --gray-200:     #e5e7eb;
+      --gray-400:     #9ca3af;
+      --gray-600:     #4b5563;
+      --gray-800:     #1f2937;
+      --white:        #ffffff;
+      --shadow-sm:    0 1px 3px rgba(0,0,0,.08);
+      --shadow-md:    0 4px 20px rgba(0,0,0,.10);
+      --radius:       12px;
+      --radius-sm:    8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #e8f5ee 0%, #f0f7ff 100%);
+      min-height: 100vh;
+      color: var(--gray-800);
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: var(--white);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.2);
+    }
+    .logo {
+      width: 46px; height: 46px;
+      background: rgba(255,255,255,.15);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .header-text h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.3px; }
+    .header-text p  { font-size: .85rem; opacity: .85; margin-top: 2px; }
+    .badge-ai {
+      margin-left: auto;
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.30);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: .78rem;
+      font-weight: 600;
+      letter-spacing: .4px;
+    }
+
+    /* ── Main layout ─────────────────────────────────────────────────── */
+    main {
+      max-width: 820px;
+      margin: 36px auto;
+      padding: 0 20px 60px;
+    }
+
+    /* ── Card ────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--green-dark);
+      margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title::before {
+      content: '';
+      display: inline-block;
+      width: 4px; height: 18px;
+      background: var(--green);
+      border-radius: 2px;
+    }
+
+    /* ── Form ────────────────────────────────────────────────────────── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--gray-600);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+
+    input, select, textarea {
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-size: .95rem;
+      color: var(--gray-800);
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      background: var(--gray-50);
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(26,122,66,.1);
+      background: var(--white);
+    }
+    textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
+
+    .conditions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .condition-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--gray-50);
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      padding: 9px 13px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      font-size: .88rem;
+    }
+    .condition-item:hover { border-color: var(--green); background: var(--green-light); }
+    .condition-item input[type=checkbox] {
+      width: 16px; height: 16px;
+      accent-color: var(--green);
+      padding: 0; margin: 0;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+    }
+    .condition-item label { cursor: pointer; text-transform: none; letter-spacing: 0; font-size: .88rem; }
+
+    /* ── Submit button ───────────────────────────────────────────────── */
+    .btn-submit {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      letter-spacing: .2px;
+    }
+    .btn-submit:hover  { opacity: .92; }
+    .btn-submit:active { transform: scale(.98); }
+    .btn-submit:disabled { opacity: .6; cursor: not-allowed; }
+
+    /* Spinner */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.35);
+      border-top-color: var(--white);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    .btn-submit.loading .spinner { display: block; }
+    .btn-submit.loading .btn-text::after { content: "..."; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results ─────────────────────────────────────────────────────── */
+    #results { display: none; animation: fadeUp .4s ease; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Emergency banner */
+    .emergency-banner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      background: var(--red-bg);
+      border: 2px solid var(--red);
+      border-radius: var(--radius-sm);
+      margin-bottom: 20px;
+      animation: pulse-border 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-border {
+      0%, 100% { border-color: var(--red); }
+      50%       { border-color: #fca5a5; }
+    }
+    .emergency-banner .icon { font-size: 28px; flex-shrink: 0; }
+    .emergency-banner .text h3 { color: var(--red); font-size: 1rem; }
+    .emergency-banner .text p  { color: #7f1d1d; font-size: .88rem; margin-top: 3px; }
+
+    /* Risk badge */
+    .risk-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 22px;
+      border-radius: 50px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: .3px;
+    }
+    .risk-badge.LOW    { background: #dcfce7; color: #15803d; }
+    .risk-badge.MEDIUM { background: var(--yellow-bg); color: #92400e; }
+    .risk-badge.HIGH   { background: var(--red-bg); color: var(--red); }
+    .risk-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .risk-badge.LOW    .risk-dot { background: #15803d; }
+    .risk-badge.MEDIUM .risk-dot { background: var(--yellow); }
+    .risk-badge.HIGH   .risk-dot { background: var(--red); animation: pulse-dot 1s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%,100%{transform:scale(1)}50%{transform:scale(1.4)} }
+
+    /* Confidence bar */
+    .confidence-row { margin-bottom: 22px; }
+    .confidence-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: .83rem;
+      font-weight: 600;
+      color: var(--gray-600);
+      margin-bottom: 6px;
+    }
+    .confidence-track {
+      height: 10px;
+      background: var(--gray-100);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .confidence-fill {
+      height: 100%;
+      border-radius: 5px;
+      background: linear-gradient(90deg, var(--green-dark), var(--green));
+      transition: width 1s ease;
+    }
+
+    /* Explanation */
+    .explanation-box {
+      background: var(--green-light);
+      border-left: 4px solid var(--green);
+      padding: 16px 18px;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      margin-bottom: 20px;
+      font-size: .95rem;
+      line-height: 1.65;
+      color: var(--gray-800);
+    }
+    .explanation-box .label {
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--green-dark);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+
+    /* Rules */
+    .rules-section { margin-bottom: 18px; }
+    .rules-label {
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--gray-600);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      margin-bottom: 8px;
+    }
+    .rule-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .rule-chip {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .no-rules { color: var(--gray-400); font-size: .88rem; font-style: italic; }
+
+    /* Meta row */
+    .meta-row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      padding-top: 16px;
+      border-top: 1px solid var(--gray-100);
+      font-size: .8rem;
+      color: var(--gray-400);
+    }
+    .meta-row span b { color: var(--gray-600); }
+
+    /* Disclaimer */
+    .disclaimer {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      font-size: .82rem;
+      color: #78350f;
+      line-height: 1.55;
+    }
+    .disclaimer b { color: #92400e; }
+
+    /* Error toast */
+    .error-box {
+      background: var(--red-bg);
+      border: 1px solid #fca5a5;
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      color: #7f1d1d;
+      font-size: .9rem;
+      display: none;
+    }
+
+    /* ── Footer ─────────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: .8rem;
+      color: var(--gray-400);
+    }
+
+    /* ── Image analysis card ─────────────────────────────────────────── */
+    .image-section { margin-top: 4px; }
+
+    /* Tab switcher between text / image mode */
+    .mode-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 24px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .mode-tab {
+      flex: 1;
+      padding: 12px;
+      font-size: .9rem;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      border: none;
+      background: var(--gray-50);
+      color: var(--gray-600);
+      transition: background .2s, color .2s;
+    }
+    .mode-tab.active {
+      background: var(--green);
+      color: var(--white);
+    }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2px dashed var(--gray-200);
+      border-radius: var(--radius);
+      padding: 32px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: var(--gray-50);
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--green);
+      background: var(--green-light);
+    }
+    .upload-zone input[type=file] {
+      position: absolute; inset: 0;
+      opacity: 0; cursor: pointer;
+      width: 100%; height: 100%;
+      border: none; background: transparent; padding: 0;
+    }
+    .upload-zone .upload-icon  { font-size: 2.8rem; margin-bottom: 10px; display: block; }
+    .upload-zone .upload-title { font-size: 1rem; font-weight: 700; color: var(--green-dark); margin-bottom: 4px; }
+    .upload-zone .upload-sub   { font-size: .82rem; color: var(--gray-400); }
+
+    /* Camera button — appears below upload zone */
+    .btn-camera {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%;
+      margin-top: 12px;
+      padding: 11px;
+      background: var(--green-light);
+      border: 1.5px solid var(--green);
+      border-radius: var(--radius-sm);
+      color: var(--green-dark);
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-camera:hover { background: #c9ebd8; }
+    .btn-camera input[type=file] {
+      position: absolute; inset: 0;
+      opacity: 0; cursor: pointer;
+      width: 100%; height: 100%;
+      border: none; background: transparent; padding: 0;
+    }
+
+    /* Image preview */
+    .preview-wrap {
+      display: none;
+      margin-top: 16px;
+      position: relative;
+    }
+    .preview-wrap img {
+      width: 100%;
+      max-height: 320px;
+      object-fit: contain;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      background: #000;
+    }
+    .preview-clear {
+      position: absolute; top: 8px; right: 8px;
+      width: 28px; height: 28px;
+      background: rgba(220,38,38,.85);
+      color: white;
+      border: none; border-radius: 50%;
+      font-size: 1rem; line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .preview-filename {
+      font-size: .78rem; color: var(--gray-400);
+      margin-top: 6px; text-align: center;
+    }
+
+    /* Image type badges (quick question shortcuts) */
+    .image-type-row {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin: 14px 0 4px;
+    }
+    .img-type-btn {
+      background: var(--gray-100);
+      border: 1.5px solid var(--gray-200);
+      color: var(--gray-600);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: .78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+    .img-type-btn:hover, .img-type-btn.active {
+      background: var(--green-light);
+      border-color: var(--green);
+      color: var(--green-dark);
+    }
+
+    /* Image analysis result */
+    #imageResults { display: none; animation: fadeUp .4s ease; margin-top: 4px; }
+    .analysis-box {
+      background: #f0f9ff;
+      border-left: 4px solid #0284c7;
+      padding: 16px 18px;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: .95rem;
+      line-height: 1.65;
+      color: var(--gray-800);
+      white-space: pre-wrap;
+    }
+    .analysis-box .label {
+      font-size: .75rem;
+      font-weight: 700;
+      color: #0369a1;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+    .model-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #e0f2fe;
+      border: 1px solid #bae6fd;
+      color: #0369a1;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: .78rem;
+      font-weight: 600;
+      margin-top: 12px;
+    }
+
+    /* ── Responsive ─────────────────────────────────────────────────── */
+    @media (max-width: 560px) {
+      .form-grid { grid-template-columns: 1fr; }
+      header { padding: 16px 20px; }
+      .card  { padding: 22px 18px; }
+      .badge-ai { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">🏥</div>
+  <div class="header-text">
+    <h1>CARELINK AI</h1>
+    <p>Rural Healthcare Symptom Triage — powered by MedGemma</p>
+  </div>
+  <span class="badge-ai">≡ MedGemma 1.5 4B</span>
+</header>
+
+<main>
+
+  <!-- ── Form card ──────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Patient Symptom Assessment</div>
+
+    <form id="triageForm" novalidate>
+      <div class="form-grid">
+
+        <!-- Symptoms -->
+        <div class="form-group full">
+          <label for="symptoms">Describe your symptoms *</label>
+          <textarea id="symptoms" name="symptoms_text" placeholder="E.g. I have severe chest pain, shortness of breath and sweating since this morning..." required></textarea>
+        </div>
+
+        <!-- Age -->
+        <div class="form-group">
+          <label for="age">Patient Age *</label>
+          <input type="number" id="age" name="age" min="0" max="150" placeholder="35" required />
+        </div>
+
+        <!-- Duration -->
+        <div class="form-group">
+          <label for="duration">Symptom Duration (days)</label>
+          <input type="number" id="duration" name="duration_days" min="0" max="3650" placeholder="1" value="1" />
+        </div>
+
+        <!-- Language -->
+        <div class="form-group">
+          <label for="language">Language</label>
+          <select id="language" name="language">
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+          </select>
+        </div>
+
+        <!-- Chronic conditions -->
+        <div class="form-group full">
+          <label>Known Chronic Conditions (select all that apply)</label>
+          <div class="conditions-grid" id="conditionsGrid">
+            <!-- filled by JS -->
+          </div>
+        </div>
+
+      </div><!-- /form-grid -->
+
+      <div class="error-box" id="formError"></div>
+
+      <button type="submit" class="btn-submit" id="submitBtn">
+        <div class="spinner"></div>
+        <span class="btn-text">Analyze Symptoms</span>
+      </button>
+    </form>
+  </div>
+
+  <!-- ── Image Analysis card ───────────────────────────────────────── -->
+  <div class="card image-section">
+    <div class="card-title">🔬 Medical Image Analysis</div>
+    <p style="font-size:.85rem;color:var(--gray-600);margin:-10px 0 18px">
+      Upload or capture a medical photo — chest X-ray, skin lesion, wound, fundus image — and let
+      MedGemma analyse it. <b>Not a diagnosis</b>; consult a healthcare professional.
+    </p>
+
+    <!-- Upload zone -->
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="imgFileInput" accept="image/*" />
+      <span class="upload-icon">🖼️</span>
+      <div class="upload-title">Drop an image here or click to browse</div>
+      <div class="upload-sub">JPEG · PNG · WEBP · BMP &nbsp;|&nbsp; Max 20 MB</div>
+    </div>
+
+    <!-- Camera capture (mobile: back camera; desktop: file dialog) -->
+    <button class="btn-camera" type="button">
+      📷 &nbsp;Capture with Camera
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" />
+    </button>
+
+    <!-- Preview -->
+    <div class="preview-wrap" id="previewWrap">
+      <img id="previewImg" src="" alt="Preview" />
+      <button class="preview-clear" id="clearImg" type="button" title="Remove image">✕</button>
+      <div class="preview-filename" id="previewFilename"></div>
+    </div>
+
+    <!-- Quick image-type shortcuts -->
+    <div>
+      <label style="font-size:.82rem;font-weight:700;color:var(--gray-600);text-transform:uppercase;letter-spacing:.4px;display:block;margin-top:18px;margin-bottom:6px">
+        Image Type &amp; Question
+      </label>
+      <div class="image-type-row" id="imageTypeBtns">
+        <button class="img-type-btn active" type="button" data-q="What do you observe in this medical image? Are there any concerning findings?">General</button>
+        <button class="img-type-btn" type="button" data-q="Analyse this chest X-ray. Describe the lung fields, heart size, and any abnormalities.">Chest X-ray</button>
+        <button class="img-type-btn" type="button" data-q="Examine this skin lesion. Describe its size, colour, borders, symmetry, and any concerning features.">Skin / Lesion</button>
+        <button class="img-type-btn" type="button" data-q="Describe this wound or injury. Comment on depth, tissue, signs of infection, and care needed.">Wound</button>
+        <button class="img-type-btn" type="button" data-q="Analyse this fundus / eye image. Note any retinal changes, disc appearance, or vascular abnormalities.">Fundus / Eye</button>
+        <button class="img-type-btn" type="button" data-q="Describe this CT or MRI scan. Note any visible abnormalities, masses, or structural changes.">CT / MRI</button>
+        <button class="img-type-btn" type="button" data-q="Read this lab report or medical document and summarise the key findings.">Lab Report</button>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:14px">
+      <label for="imgQuestion">Custom question (optional)</label>
+      <textarea id="imgQuestion" rows="2" placeholder="Ask a specific question about the image…"
+        style="min-height:56px">What do you observe in this medical image? Are there any concerning findings?</textarea>
+    </div>
+
+    <div class="form-group" style="margin-top:12px">
+      <label for="imgLanguage">Response language</label>
+      <select id="imgLanguage">
+        <option value="en">English</option>
+        <option value="es">Español</option>
+        <option value="fr">Français</option>
+      </select>
+    </div>
+
+    <div class="error-box" id="imgError" style="margin-top:12px"></div>
+
+    <button type="button" class="btn-submit" id="analyzeBtn" style="margin-top:14px">
+      <div class="spinner"></div>
+      <span class="btn-text">Analyze Image</span>
+    </button>
+  </div>
+
+  <!-- ── Image Analysis Result ──────────────────────────────────────── -->
+  <div id="imageResults">
+    <div class="card">
+      <div class="card-title">🩺 MedGemma Vision Analysis</div>
+      <div class="analysis-box">
+        <div class="label">AI Medical Image Interpretation</div>
+        <div id="analysisText">—</div>
+      </div>
+      <div id="imgModelBadge" class="model-badge" style="display:none">
+        <span>🤖</span> <span id="imgModelName"></span>
+      </div>
+    </div>
+    <div class="disclaimer">
+      <b>⚠️ Vision Analysis Disclaimer:</b> MedGemma's image analysis is experimental and for
+      <b>educational / informational purposes only</b>. It does <b>not</b> constitute a medical
+      diagnosis. Always have medical images reviewed by a qualified radiologist or physician.
+    </div>
+  </div>
+
+  <!-- ── Triage Results ────────────────────────────────────────────── -->
+  <div id="results">
+
+    <!-- Emergency banner (conditional) -->
+    <div class="emergency-banner" id="emergencyBanner" style="display:none">
+      <div class="icon">🚨</div>
+      <div class="text">
+        <h3>Emergency — Call 112 / 911 Immediately</h3>
+        <p>This assessment indicates a life-threatening condition requiring immediate emergency care.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Triage Result</div>
+
+      <!-- Risk + confidence -->
+      <div class="risk-row">
+        <span class="risk-badge" id="riskBadge">
+          <span class="risk-dot"></span>
+          <span id="riskText">—</span>
+        </span>
+        <span style="font-size:.85rem;color:var(--gray-600)">Request&nbsp;<code id="reqId" style="font-size:.78rem;color:var(--gray-400)"></code></span>
+      </div>
+
+      <div class="confidence-row">
+        <div class="confidence-label">
+          <span>AI Confidence</span>
+          <span id="confPct">—</span>
+        </div>
+        <div class="confidence-track">
+          <div class="confidence-fill" id="confBar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Explanation (MedGemma) -->
+      <div class="explanation-box">
+        <div class="label">🤖 MedGemma Assessment</div>
+        <div id="explanationText">—</div>
+      </div>
+
+      <!-- Rules triggered -->
+      <div class="rules-section">
+        <div class="rules-label">Clinical Safety Rules Triggered</div>
+        <div class="rule-chips" id="ruleChips"></div>
+      </div>
+
+      <!-- Meta -->
+      <div class="meta-row">
+        <span><b>Model&nbsp;Version:</b> <span id="modelVer">—</span></span>
+        <span><b>Escalated:</b> <span id="escalated">—</span></span>
+        <span><b>Timestamp:</b> <span id="timestamp">—</span></span>
+      </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      <b>⚠️ Medical Disclaimer:</b> This AI assessment is for informational purposes only and does
+      <b>not</b> replace professional medical advice. Always consult a qualified healthcare provider
+      for diagnosis and treatment decisions.
+    </div>
+  </div>
+
+</main>
+
+<footer>CARELINK AI · Rural Healthcare Accessibility Platform · &copy; 2026</footer>
+
+<script>
+  // ── Config ────────────────────────────────────────────────────────
+  const API_BASE = window.location.origin.includes('file://')
+    ? 'http://localhost:8000'
+    : window.location.origin;
+
+  const CHRONIC_CONDITIONS = [
+    'diabetes', 'hypertension', 'heart disease', 'asthma', 'COPD',
+    'kidney disease', 'liver disease', 'cancer', 'HIV/AIDS', 'epilepsy',
+    'stroke', 'obesity', 'anemia', 'tuberculosis', 'malaria'
+  ];
+
+  // ── Build conditions checkboxes ───────────────────────────────────
+  const grid = document.getElementById('conditionsGrid');
+  CHRONIC_CONDITIONS.forEach(c => {
+    const id = 'cond_' + c.replace(/[^a-z]/gi, '_');
+    const item = document.createElement('label');
+    item.className = 'condition-item';
+    item.innerHTML = `<input type="checkbox" id="${id}" value="${c}" />${c}`;
+    grid.appendChild(item);
+  });
+
+  // ── Form submit ───────────────────────────────────────────────────
+  document.getElementById('triageForm').addEventListener('submit', async e => {
+    e.preventDefault();
+
+    const symptoms = document.getElementById('symptoms').value.trim();
+    const age      = parseInt(document.getElementById('age').value, 10);
+    const dur      = parseInt(document.getElementById('duration').value, 10) || 0;
+    const lang     = document.getElementById('language').value;
+    const checked  = [...document.querySelectorAll('#conditionsGrid input:checked')]
+                       .map(el => el.value);
+
+    const errBox = document.getElementById('formError');
+    errBox.style.display = 'none';
+
+    if (!symptoms) { showErr('Please describe your symptoms.'); return; }
+    if (!age || age < 0 || age > 150) { showErr('Please enter a valid age (0–150).'); return; }
+
+    setLoading(true);
+    document.getElementById('results').style.display = 'none';
+
+    try {
+      const payload = {
+        symptoms_text:       symptoms,
+        age:                 age,
+        duration_days:       dur,
+        chronic_conditions:  checked,
+        language:            lang
+      };
+
+      const resp = await fetch(`${API_BASE}/api/v1/triage/predict`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      renderResults(data);
+
+    } catch (err) {
+      showErr(`Request failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // ── Render results ────────────────────────────────────────────────
+  function renderResults(d) {
+    const risk = d.prediction;       // LOW | MEDIUM | HIGH
+    const conf = Math.round((d.confidence || 0) * 100);
+
+    // Emergency banner
+    const banner = document.getElementById('emergencyBanner');
+    banner.style.display = d.emergency_flag ? 'flex' : 'none';
+
+    // Risk badge
+    const badge = document.getElementById('riskBadge');
+    badge.className = 'risk-badge ' + risk;
+    document.getElementById('riskText').textContent = risk + ' RISK';
+
+    // Confidence
+    document.getElementById('confPct').textContent = conf + '%';
+    setTimeout(() => {
+      document.getElementById('confBar').style.width = conf + '%';
+    }, 50);
+
+    // Explanation
+    document.getElementById('explanationText').textContent =
+      d.explanation || 'No explanation available.';
+
+    // Rules
+    const chips = document.getElementById('ruleChips');
+    chips.innerHTML = '';
+    if (d.rules_triggered && d.rules_triggered.length > 0) {
+      d.rules_triggered.forEach(r => {
+        const chip = document.createElement('span');
+        chip.className = 'rule-chip';
+        chip.textContent = r.replace(/_/g, ' ');
+        chips.appendChild(chip);
+      });
+    } else {
+      chips.innerHTML = '<span class="no-rules">No rules triggered</span>';
+    }
+
+    // Meta
+    document.getElementById('reqId').textContent = d.request_id || '';
+    document.getElementById('modelVer').textContent = d.model_version || '—';
+    document.getElementById('escalated').textContent = d.escalated ? 'Yes' : 'No';
+    document.getElementById('timestamp').textContent =
+      d.timestamp ? new Date(d.timestamp).toLocaleString() : '—';
+
+    // Scroll & show
+    const resultsEl = document.getElementById('results');
+    resultsEl.style.display = 'block';
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────
+  function setLoading(on) {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = on;
+    btn.classList.toggle('loading', on);
+    document.querySelector('.btn-text').textContent =
+      on ? 'Analyzing' : 'Analyze Symptoms';
+  }
+
+  // ── Image Analysis ────────────────────────────────────────────────
+  let selectedImageFile = null;
+
+  // Helper: show a selected image file
+  function showPreview(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      showImgErr('Please select a valid image file (JPEG, PNG, WEBP, BMP).');
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      showImgErr('Image is too large (max 20 MB).');
+      return;
+    }
+    selectedImageFile = file;
+    const url = URL.createObjectURL(file);
+    document.getElementById('previewImg').src = url;
+    document.getElementById('previewFilename').textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    document.getElementById('previewWrap').style.display = 'block';
+    document.getElementById('imgError').style.display = 'none';
+  }
+
+  // File input listeners (browse + drop zone)
+  document.getElementById('imgFileInput').addEventListener('change', e => {
+    if (e.target.files[0]) showPreview(e.target.files[0]);
+  });
+  document.getElementById('cameraInput').addEventListener('change', e => {
+    if (e.target.files[0]) showPreview(e.target.files[0]);
+  });
+
+  // Drag & drop
+  const zone = document.getElementById('uploadZone');
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) showPreview(e.dataTransfer.files[0]);
+  });
+
+  // Clear image
+  document.getElementById('clearImg').addEventListener('click', () => {
+    selectedImageFile = null;
+    document.getElementById('previewWrap').style.display = 'none';
+    document.getElementById('previewImg').src = '';
+    document.getElementById('imgFileInput').value = '';
+    document.getElementById('cameraInput').value = '';
+  });
+
+  // Quick image-type buttons
+  document.getElementById('imageTypeBtns').querySelectorAll('.img-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.img-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('imgQuestion').value = btn.dataset.q;
+    });
+  });
+
+  // Analyze image submit
+  document.getElementById('analyzeBtn').addEventListener('click', async () => {
+    const imgErrBox = document.getElementById('imgError');
+    imgErrBox.style.display = 'none';
+
+    if (!selectedImageFile) {
+      showImgErr('Please select or capture an image first.');
+      return;
+    }
+
+    const question = document.getElementById('imgQuestion').value.trim()
+      || 'What do you observe in this medical image? Are there any concerning findings?';
+    const language = document.getElementById('imgLanguage').value;
+
+    setImgLoading(true);
+    document.getElementById('imageResults').style.display = 'none';
+
+    try {
+      const fd = new FormData();
+      fd.append('image',    selectedImageFile, selectedImageFile.name);
+      fd.append('question', question);
+      fd.append('language', language);
+
+      const resp = await fetch(`${API_BASE}/api/v1/triage/analyze-image`, {
+        method: 'POST',
+        body:   fd,
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      renderImageResult(data);
+
+    } catch (err) {
+      showImgErr(`Image analysis failed: ${err.message}`);
+    } finally {
+      setImgLoading(false);
+    }
+  });
+
+  function renderImageResult(d) {
+    document.getElementById('analysisText').textContent = d.analysis || 'No analysis returned.';
+
+    const badge = document.getElementById('imgModelBadge');
+    if (d.model_name) {
+      document.getElementById('imgModelName').textContent = d.model_name;
+      badge.style.display = 'inline-flex';
+      if (!d.model_ready) {
+        badge.style.background = '#fef3c7';
+        badge.style.color = '#92400e';
+        badge.querySelector('span').textContent = '⚠️ Fallback (MedGemma not ready)';
+      }
+    }
+
+    const resEl = document.getElementById('imageResults');
+    resEl.style.display = 'block';
+    resEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function setImgLoading(on) {
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = on;
+    btn.classList.toggle('loading', on);
+    btn.querySelector('.btn-text').textContent = on ? 'Analyzing Image' : 'Analyze Image';
+  }
+
+  function showImgErr(msg) {
+    const el = document.getElementById('imgError');
+    el.textContent = '⚠ ' + msg;
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+</script>
+
+</body>
+</html>

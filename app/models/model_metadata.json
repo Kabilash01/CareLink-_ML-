@@ -1,0 +1,35 @@
+{
+  "version": "v2.0.0",
+  "model_type": "GradientBoostingClassifier",
+  "sklearn_version": "1.4.0",
+  "features": [
+    "age",
+    "duration_days",
+    "num_high_symptoms",
+    "num_medium_symptoms",
+    "num_low_symptoms",
+    "chronic_count",
+    "high_weight",
+    "medium_weight",
+    "chronic_weight",
+    "age_factor",
+    "duration_factor",
+    "is_elderly",
+    "is_child",
+    "has_critical_symptom"
+  ],
+  "label_map": {
+    "LOW": 0,
+    "MEDIUM": 1,
+    "HIGH": 2
+  },
+  "cv_f1_macro": 0.9428,
+  "test_accuracy": 0.9445,
+  "n_estimators": 200,
+  "training_samples": 40000,
+  "class_distribution": {
+    "LOW": 10058,
+    "MEDIUM": 18653,
+    "HIGH": 21289
+  }
+}
