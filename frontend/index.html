@@ -51,6 +51,16 @@
     .header-text h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.3px; }
     .header-text p  { font-size: .85rem; opacity: .85; margin-top: 2px; }
     .badge-ai { margin-left: auto; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.30); border-radius: 20px; padding: 5px 14px; font-size: .78rem; font-weight: 600; letter-spacing: .4px; }
+    .model-status { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 20px; padding: 4px 12px; font-size: .72rem; font-weight: 600; cursor: default; }
+    .model-status .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .model-status.loading .dot  { background: var(--yellow); animation: pulse-dot 1s ease-in-out infinite; }
+    .model-status.ready .dot    { background: #4ade80; }
+    .model-status.error .dot    { background: var(--red); }
+    .model-banner { padding: 10px 18px; border-radius: var(--radius-sm); font-size: .85rem; margin-bottom: 16px; display: none; align-items: center; gap: 10px; }
+    .model-banner.warn  { background: var(--yellow-bg); border: 1px solid #fde68a; color: #92400e; }
+    .model-banner.err   { background: var(--red-bg); border: 1px solid #fca5a5; color: #7f1d1d; }
+    .model-banner .retry-btn { background: var(--green); color: white; border: none; border-radius: 6px; padding: 5px 14px; font-size: .8rem; font-weight: 600; cursor: pointer; margin-left: auto; flex-shrink: 0; }
+    .model-banner .retry-btn:hover { opacity: .85; }
 
     main { max-width: 860px; margin: 36px auto; padding: 0 20px 60px; }
 
@@ -297,6 +307,7 @@
     <p>Rural Healthcare Symptom Triage - powered by MedGemma</p>
   </div>
   <span class="badge-ai">&#9889; MedGemma 4B-IT</span>
+  <span class="model-status loading" id="modelStatus" title="Model status"><span class="dot"></span><span class="status-text">Loading...</span></span>
 </header>
 
 <main>
@@ -306,6 +317,11 @@
       <button class="mode-tab active" data-mode="triage" type="button">&#129658; Symptom Triage</button>
       <button class="mode-tab" data-mode="image" type="button">&#128300; Image Analysis</button>
     </div>
+  </div>
+
+  <!-- Model status banner (shown when model not ready) -->
+  <div class="model-banner warn" id="modelBanner">
+    <span>&#9888;&#65039; <b>MedGemma is loading...</b> Triage and image analysis will use template fallback until the model is ready (~40s).</span>
   </div>
 
   <!-- TRIAGE SECTION -->
@@ -490,6 +506,64 @@
 
   var triageContext = null;
   var chatHistory   = [];
+
+  // MODEL STATUS POLLING
+  (function pollModelStatus() {
+    var statusEl  = document.getElementById('modelStatus');
+    var statusTxt = statusEl.querySelector('.status-text');
+    var banner    = document.getElementById('modelBanner');
+    var modelReady = false;
+
+    function check() {
+      fetch(API_BASE + '/api/v1/model/info')
+        .then(function(r) {
+          if (r.status === 503) throw new Error('loading');
+          return r.json();
+        })
+        .then(function() {
+          // model/info returns 200 => ML model loaded, now also check LLM
+          return fetch(API_BASE + '/api/v1/triage/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: 'ping', history: [], language: 'en' })
+          });
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.model_ready) {
+            statusEl.className = 'model-status ready';
+            statusTxt.textContent = 'Ready';
+            banner.style.display = 'none';
+            modelReady = true;
+          } else {
+            throw new Error('not-ready');
+          }
+        })
+        .catch(function() {
+          if (!modelReady) {
+            statusEl.className = 'model-status loading';
+            statusTxt.textContent = 'Loading...';
+            banner.className = 'model-banner warn';
+            banner.style.display = 'flex';
+            banner.innerHTML = '<span>&#9888;&#65039; <b>MedGemma is loading...</b> Triage and image analysis will use template fallback until the model is ready (~40s).</span>';
+            setTimeout(check, 5000);
+          }
+        });
+    }
+    check();
+
+    // Expose retry function
+    window.retryModelLoad = function() {
+      statusEl.className = 'model-status loading';
+      statusTxt.textContent = 'Retrying...';
+      banner.className = 'model-banner warn';
+      banner.style.display = 'flex';
+      banner.innerHTML = '<span>&#9888;&#65039; <b>Retrying model load...</b></span>';
+      fetch(API_BASE + '/api/v1/model/reload', { method: 'POST' })
+        .then(function() { modelReady = false; setTimeout(check, 5000); })
+        .catch(function() { setTimeout(check, 5000); });
+    };
+  })();
 
   // MODE TABS
   document.querySelectorAll('.mode-tab').forEach(function(tab) {

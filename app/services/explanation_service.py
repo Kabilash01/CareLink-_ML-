@@ -64,9 +64,37 @@ class ExplanationService:
             raise result_box[1]
         return result_box[0]
 
+    def retry_load(self):
+        """Manually retry model loading (e.g. from an admin endpoint)."""
+        if self._model is not None:
+            return "Model already loaded."
+        if self._loading:
+            return "Model is currently loading, please wait."
+        self._load_err = None
+        self._start_load()
+        return "Model reload triggered."
+
     def _gpu_worker(self):
-        """Load the model, run warmups, then serve inference requests forever."""
-        self._load_model()
+        """Load the model (with retries), run warmups, then serve requests."""
+        MAX_RETRIES = 3
+        RETRY_DELAY = 10  # seconds
+
+        for attempt in range(1, MAX_RETRIES + 1):
+            self._load_model()
+            if self._model is not None:
+                break  # success
+            if attempt < MAX_RETRIES:
+                logger.warning(
+                    f"[BNB] Model load attempt {attempt}/{MAX_RETRIES} failed: "
+                    f"{self._load_err} — retrying in {RETRY_DELAY}s"
+                )
+                time.sleep(RETRY_DELAY)
+                self._load_err = None
+                self._loading = True
+            else:
+                logger.error(
+                    f"[BNB] All {MAX_RETRIES} load attempts failed: {self._load_err}"
+                )
 
         # ── Enter request loop (runs until process exits)
         while True:
@@ -105,8 +133,13 @@ class ExplanationService:
 
             # ── CUDA check
             if not torch.cuda.is_available():
-                raise RuntimeError("CUDA not available — NF4 requires a CUDA GPU")
-            logger.info(f"[BNB] CUDA OK | device={torch.cuda.get_device_name(0)}")
+                raise RuntimeError(
+                    "CUDA not available — NF4 requires a CUDA GPU. "
+                    "Ensure NVIDIA drivers are loaded and try restarting the server."
+                )
+            dev_name = torch.cuda.get_device_name(0)
+            vram_mb = torch.cuda.get_device_properties(0).total_memory // (1024 * 1024)
+            logger.info(f"[BNB] CUDA OK | device={dev_name} | VRAM={vram_mb}MB")
 
             # ── TF32 for faster matmul on Ampere+
             torch.backends.cuda.matmul.allow_tf32 = True
@@ -384,7 +417,7 @@ class ExplanationService:
         if self._model is None:
             if self._loading:
                 return "MedGemma is still loading. Please try again in a moment."
-            return f"MedGemma not available: {self._load_err or 'unknown error'}"
+            return f"MedGemma not available: {self._load_err or 'unknown error'}. Try reloading via the Retry button."
 
         try:
             lang_instruction = {

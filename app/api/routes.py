@@ -229,6 +229,24 @@ async def get_model_info():
 
 
 @router.post(
+    "/model/reload",
+    summary="Retry loading the MedGemma model",
+    description="Trigger a manual retry of MedGemma model loading if it failed at startup.",
+    tags=["Model"],
+)
+async def reload_model():
+    """
+    Retry loading MedGemma if the initial load failed (e.g. CUDA not ready at boot).
+    """
+    explanation_svc = triage_service.explanation_service
+    msg = explanation_svc.retry_load()
+    return {
+        "message": msg,
+        "model_ready": explanation_svc.model_ready,
+    }
+
+
+@router.post(
     "/triage/analyze-image",
     summary="Analyze a medical image with MedGemma",
     description=(
